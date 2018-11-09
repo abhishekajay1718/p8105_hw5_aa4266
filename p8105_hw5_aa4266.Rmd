@@ -70,4 +70,36 @@ homicide_data = read_csv("./data/homicide-data.csv")
 
 The dimensions of the raw data are: `r dim(homicide_data)`
 
-The variables in the raw data are: `r colnames(homicide_data) %>% knitr::kable() %>% t()`
+The variables in the raw data are: uid, reported date, victim's last name and first name, victim's race, age, sex, city, state, latitude, longitude and disposition.
+
+The first report was on 1st January, 2007 and 31st December 2017. There are 2 probably incorrect date entries for uid: Mia-000652 and Mia-000649.
+
+Mutating the raw data.
+```{r p2_data_mutate}
+homicide_data_mutate_total = 
+  homicide_data %>% 
+  mutate(city_state = paste(city, state, sep = ", "), disposition = as.factor(disposition)) %>%
+  group_by(city_state) %>% 
+  summarise(n_homicides = n())
+
+homicide_data_mutate_unsolved = 
+  homicide_data %>% 
+  ungroup() %>% 
+  mutate(city_state = paste(city, state, sep = ", "), disposition = as.factor(disposition)) %>%
+  filter(disposition != "Closed by arrest") %>% 
+  group_by(city_state) %>% 
+    summarise(n_unsolved_homicides = n())
+
+# The city, Tulsa is ignored in the join since its unsolved homicides' NA.
+homicide_data_mutate = 
+  full_join(homicide_data_mutate_total, homicide_data_mutate_unsolved) %>% 
+  filter(!is.na(n_unsolved_homicides))
+```
+
+Finding an estimate to the proportion of homicides that are unsolved for the city of Baltimore, MD
+
+```{r p2_homicide_prop}
+homicide_data_mutate %>%
+  filter(city_state == "Baltimore, MD") %>% 
+  prop.test(n_unsolved_homicides, n_homicides)
+```
