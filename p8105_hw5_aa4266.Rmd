@@ -6,13 +6,18 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      fig.width = 6,
+                      fig.asp = .6,
+                      out.width = "90%"
+                      )
 
 library(tidyverse)
 library(rvest)
 library(purrr)
+library(ggplot2)
 
-
+theme_set(theme_bw() + theme(legend.position = "bottom"))
 ```
 
 ##Problem 1
@@ -96,10 +101,52 @@ homicide_data_mutate =
   filter(!is.na(n_unsolved_homicides))
 ```
 
-Finding an estimate to the proportion of homicides that are unsolved for the city of Baltimore, MD
+Finding an estimate to the proportion of homicides that are unsolved for the city of **Baltimore, MD**
 
 ```{r p2_homicide_prop}
-homicide_data_mutate %>%
-  filter(city_state == "Baltimore, MD") %>% 
-  prop.test(n_unsolved_homicides, n_homicides)
+proportion_baltimore =
+  homicide_data_mutate %>%
+  filter(city_state == "Baltimore, MD") 
+  
+prop.test(proportion_baltimore$n_unsolved_homicides, proportion_baltimore$n_homicides) %>% 
+  broom::tidy() %>% 
+  select(estimate, conf.low, conf.high) %>% 
+  mutate(conf.int = conf.high - conf.low) %>% 
+  knitr::kable()
+```
+
+Finding the same proportion for each city using iterations.
+```{r p2_homicide_prop_all}
+prop.test_city = function(x){
+  proportion_city = 
+    homicide_data_mutate %>% 
+    filter(city_state == x)
+  
+  prop.test(proportion_city$n_unsolved_homicides, proportion_city$n_homicides) %>% 
+  broom::tidy() %>% 
+  select(estimate, conf.low, conf.high) %>% 
+  mutate(conf.int = conf.high - conf.low)
+}
+
+proportion_all_cities = 
+  map(homicide_data_mutate$city_state, prop.test_city) %>% 
+  mutate(homicide_data_mutate, data = .) %>% 
+  unnest()
+```
+
+Making a plot here to display the CIs and estimates for each city.
+
+```{r p2_plot}
+proportion_all_cities %>% 
+  mutate(city_state = as.factor(city_state)) %>%
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_point() + geom_errorbar() +
+  labs(
+    title = "Estimates and their Confidence Interval for each city",
+    x = "City name", 
+    y = "Estimated Proportion", 
+    caption = "Data from The Washington Post"
+  ) +
+  theme(axis.text.x = element_text(angle = 90))
 ```
